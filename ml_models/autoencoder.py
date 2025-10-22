@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import pandas as pd 
 import numpy as np
 import seaborn as sns
+import os
 
 class AutoEncoder:
     def __init__(self, data_shape):
@@ -36,11 +37,6 @@ class AutoEncoder:
 
         return self.autoencoder
 
-    def inputPipeline(self, x):
-        #let's do bit of data transformation for scaling
-        x_scale = preprocessing.MinMaxScaler().fit_transform(x.values)
-        return x_scale
-
     def getHiddenRepresentation(self, model):
         #Let's try to get latent learnt representation by autoencoder
         hidden_representation = Sequential()
@@ -51,7 +47,20 @@ class AutoEncoder:
         return hidden_representation
 
     def save_load_models(self, path, model=None, mode="save"):
-        if mode=="save":
-            model.save(path)
+        # Add .keras extension if not present
+        if not path.endswith('.keras') and not path.endswith('.h5'):
+            model_path = path + '.keras'
         else:
-            return load_model(path)
+            model_path = path
+            
+        if mode=="save":
+            model.save(model_path)
+        else:
+            # Try loading with .keras extension first, then .h5 if that fails
+            if os.path.exists(model_path):
+                return load_model(model_path)
+            elif os.path.exists(path + '.h5'):
+                return load_model(path + '.h5')
+            else:
+                # Final fallback
+                return load_model(path)
