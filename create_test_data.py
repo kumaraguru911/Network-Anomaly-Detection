@@ -9,6 +9,9 @@ if os.path.exists(data_file):
     # Read data
     df = pd.read_csv(data_file)
     
+    # Strip whitespace from column names to prevent KeyErrors
+    df.columns = df.columns.str.strip()
+    
     # Display info about the data
     print(f"Data shape: {df.shape}")
     print(f"Columns: {df.columns.tolist()}")

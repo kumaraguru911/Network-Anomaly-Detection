@@ -16,7 +16,9 @@ from sklearn.svm import OneClassSVM
 class processData():
     def __init__(self, file_path):
         self.raw_data = pd.read_csv(file_path)
-
+        # Strip whitespace from column names to prevent KeyErrors
+        # e.g. ' Label' -> 'Label'
+        self.raw_data.columns = self.raw_data.columns.str.strip()
         pass
 
     def save_df(self, predictions,num_samples, file_path):
@@ -76,19 +78,19 @@ class processData():
         # Explicitly convert to numeric to avoid FutureWarning
         self.raw_data['Label'] = pd.to_numeric(self.raw_data['Label'].replace(replace_map))
         data = self.raw_data
-        # fill all the empty hosts with None
-        data = data.fillna("None") 
-
-        #Now let's encode all the columns which are not float or int e.g. sourceIP, MAC to make it possible for model to interpret
-        columnsToEncode = list(data.select_dtypes(include=['category', 'object']))  
-                    
-        le = LabelEncoder() # use label encoder from sklearn
-        for feature in columnsToEncode:
-            try:
-                data[feature] = le.fit_transform(data[feature])
-                #print(data[feature])
-            except:
-                print ('error' + feature)
+        
+        # Data Cleaning: Handle non-numeric and infinite values
+        # The CIC-IDS-2017 dataset has 'Infinity' and NaN values.
+        # 1. Replace infinite values with NaN
+        data.replace([np.inf, -np.inf], np.nan, inplace=True)
+        
+        # 2. Drop the label column before cleaning features
+        y = data['Label']
+        X = data.drop(['Label'], axis=1)
+        
+        # 3. Fill NaN with 0 and ensure all feature columns are numeric
+        X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
+        data = pd.concat([X, y], axis=1)
 
 
         #Let's split the data to train and validation
@@ -118,33 +120,26 @@ class processData():
 
     def prepareTestData(self, scaler):
             data = self.raw_data
-            # fill all the empty hosts with None
+            
+            # Drop the 'Unnamed: 0' column if it exists from reading test_data.csv
             if 'Unnamed: 0' in data.columns:
                 data = data.drop('Unnamed: 0', axis=1)
 
-            data = data.fillna("None") 
-
-            #Now let's encode all the columns which are not float or int e.g. sourceIP, MAC to make it possible for model to interpret
-            columnsToEncode = list(data.select_dtypes(include=['category', 'object']))  
-                        
-            le = LabelEncoder() # use label encoder from sklearn
-            for feature in columnsToEncode:
-                try:
-                    data[feature] = le.fit_transform(data[feature])
-                    #print(data[feature])
-                except:
-                    print ('error' + feature)
-
-            # Ensure all columns are numeric before scaling
-            for col in data.columns:
-                if data[col].dtype == 'object':
-                    data[col] = pd.to_numeric(data[col], errors='coerce').fillna(0) # Coerce non-numeric to NaN then fill
-
-            # Drop the 'Label' column if it exists, as the scaler was fitted without it
+            # Separate features and labels (if 'Label' exists)
             if 'Label' in data.columns:
-                data = data.drop('Label', axis=1)
+                X = data.drop('Label', axis=1)
+            else:
+                X = data
+            
+            # Apply the same cleaning steps as in prepareTrainingData
+            # 1. Replace infinite values with NaN
+            X.replace([np.inf, -np.inf], np.nan, inplace=True)
+            
+            # 2. Fill NaN with 0 and ensure all feature columns are numeric
+            # This handles 'Infinity', NaN, and any other non-numeric strings
+            X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
 
             # Scale the data using the scaler from training
-            data_scaled = scaler.transform(data)
+            data_scaled = scaler.transform(X)
             return data_scaled
     
